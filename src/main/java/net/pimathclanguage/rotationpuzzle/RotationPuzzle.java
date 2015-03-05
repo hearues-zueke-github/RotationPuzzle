@@ -1,12 +1,14 @@
 package net.pimathclanguage.rotationpuzzle;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Random;
+import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
@@ -248,6 +250,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
             // Size of Field
         menuSizeField = new JMenu();
         menuSizeField.setText("Size of Field");
+        menuSizeField.setFont(new Font(new JMenu().getFont().getName(), new JMenu().getFont().getStyle(), 14));
         menuSize.add(menuSizeField);
               // Size Field List
         menuitemSizeField = new JMenuItem[7];
@@ -271,6 +274,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
             // Size of Button
         menuSizeButton = new JMenu();
         menuSizeButton.setText("Size of Button");
+        menuSizeButton.setFont(new Font(new JMenu().getFont().getName(), new JMenu().getFont().getStyle(), 14));
         menuSize.add(menuSizeButton);
               // Size Button List
         menuitemSizeButton = new JMenuItem[8];
