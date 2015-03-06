@@ -8,7 +8,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Random;
-import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
@@ -45,6 +44,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
     private JMenu menuSettings;
     private JCheckBoxMenuItem checkboxmenuitemAutoCenter;
     private JCheckBoxMenuItem checkboxmenuitemShowColor;
+    private JMenuItem menuitemChangeKeys;
       // Help
     private JMenu menuHelp;
     private JMenuItem menuitemIntro;
@@ -106,18 +106,16 @@ public class RotationPuzzle extends JFrame implements KeyListener
     {
         this.setPreferredSize(new Dimension(bfL * 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
                                             bfL + 60 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1)));
-//        this.setSize(bfL * 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
-//                     bfL + 60 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1));
-        
+
         this.pack();
-//        try
-//        {
-//            Thread.sleep(20);
-//        }
-//        catch (Exception e)        
-//        {
-//            
-//        }
+        try
+        {
+            Thread.sleep(20);
+        }
+        catch (Exception e)        
+        {
+            
+        }
         if (checkboxmenuitemAutoCenter.getState())
         {
             this.setLocationRelativeTo(null);
@@ -375,6 +373,22 @@ public class RotationPuzzle extends JFrame implements KeyListener
             }
         });
         menuHelp.add(menuitemInfo);
+    }
+    private JMenu createNewJMenu(String text, ActionListener newActionListener, JMenuBar jMenuBar)
+    {
+        JMenu newObject = new JMenu();
+        newObject.setText(text);
+        newObject.addActionListener(newActionListener);
+        jMenuBar.add(newObject);
+        return newObject;
+    }
+    private JMenuItem createNewJMenuItem(String text, ActionListener newActionListener, JMenuBar jMenuBar)
+    {
+        JMenu newObject = new JMenu();
+        newObject.setText(text);
+        newObject.addActionListener(newActionListener);
+        jMenuBar.add(newObject);
+        return newObject;
     }
     private class ButtonActionListener implements ActionListener
     {
