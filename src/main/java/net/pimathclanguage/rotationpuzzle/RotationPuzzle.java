@@ -104,12 +104,25 @@ public class RotationPuzzle extends JFrame implements KeyListener
     }
     private void setWindowSize()
     {
-        this.setSize(bfL * 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
-                     bfL + 60 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1));
+        this.setPreferredSize(new Dimension(bfL * 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
+                                            bfL + 60 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1)));
+//        this.setSize(bfL * 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
+//                     bfL + 60 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1));
+        
+        this.pack();
+//        try
+//        {
+//            Thread.sleep(20);
+//        }
+//        catch (Exception e)        
+//        {
+//            
+//        }
         if (checkboxmenuitemAutoCenter.getState())
         {
             this.setLocationRelativeTo(null);
         }
+        this.pack();
     }
     private void setVariablesDefault()
     {
@@ -415,17 +428,17 @@ public class RotationPuzzle extends JFrame implements KeyListener
             {
                 // Open a new JFrame with question:" How Many X and Y Tiles?"
             }
+            menuitemSizeField[sizeFieldChosen].setBackground(new JMenuItem().getBackground());
+            menuitemSizeField[sizeFieldChosen].setForeground(new JMenuItem().getForeground());
+            sizeFieldChosen = index;
+            menuitemSizeField[sizeFieldChosen].setBackground(colorb4);
+            menuitemSizeField[sizeFieldChosen].setForeground(colorf4);
             setButtonFieldBound();
             setWindowSize();
             selectx = 1;
             selecty = 1;
             isSelectActive = false;
             refreshFieldButton(isSelectActive);
-            menuitemSizeField[sizeFieldChosen].setBackground(new JMenuItem().getBackground());
-            menuitemSizeField[sizeFieldChosen].setForeground(new JMenuItem().getForeground());
-            sizeFieldChosen = index;
-            menuitemSizeField[sizeFieldChosen].setBackground(colorb4);
-            menuitemSizeField[sizeFieldChosen].setForeground(colorf4);
             System.out.println("Field Menu Item #" + String.valueOf(index));
         }
     }
@@ -458,17 +471,17 @@ public class RotationPuzzle extends JFrame implements KeyListener
             {
                 // Open a new JFrame with question:" How Many X and Y Tiles?"
             }
+            menuitemSizeButton[sizeButtonChosen].setBackground(new JMenuItem().getBackground());
+            menuitemSizeButton[sizeButtonChosen].setForeground(new JMenuItem().getForeground());
+            sizeButtonChosen = index;
+            menuitemSizeButton[sizeButtonChosen].setBackground(colorb4);
+            menuitemSizeButton[sizeButtonChosen].setForeground(colorf4);
             setButtonFieldBound();
             setWindowSize();
             selectx = 1;
             selecty = 1;
             isSelectActive = false;
             refreshFieldButton(isSelectActive);
-            menuitemSizeButton[sizeButtonChosen].setBackground(new JMenuItem().getBackground());
-            menuitemSizeButton[sizeButtonChosen].setForeground(new JMenuItem().getForeground());
-            sizeFieldChosen = index;
-            menuitemSizeButton[sizeButtonChosen].setBackground(colorb4);
-            menuitemSizeButton[sizeButtonChosen].setForeground(colorf4);
             System.out.println("Button Menu Item #" + String.valueOf(index));
         }
     }
