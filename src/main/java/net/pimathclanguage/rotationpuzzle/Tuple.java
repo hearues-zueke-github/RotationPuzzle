@@ -1,5 +1,5 @@
 package net.pimathclanguage.rotationpuzzle;
-
+ 
 public class Tuple {
     public class Tuple2<V1, V2> {
         private V1 v1;

@@ -93,7 +93,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
     // Add the tracker of the rotations per position
     private List<Tuple3<Integer, Integer, Integer>> rotTracker = new ArrayList<>();
     
-    // Constructor of this Class
+    // Constructor of this Class 
     public RotationPuzzle()
     {
         // Default
