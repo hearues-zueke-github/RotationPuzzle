@@ -7,6 +7,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
@@ -20,6 +22,7 @@ import javax.swing.border.Border;
 import javax.swing.border.LineBorder;
 import lombok.Getter;
 import lombok.Setter;
+import net.pimathclanguage.rotationpuzzle.Tuple.Tuple3;
 
 public class RotationPuzzle extends JFrame implements KeyListener
 {
@@ -49,6 +52,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
     private JMenu menuHelp;
     private JMenuItem menuitemIntro;
     private JMenuItem menuitemInfo;
+    
     // Field Variables
     private JButton[][] fieldButton;
     private int[][] fieldInt;
@@ -85,6 +89,10 @@ public class RotationPuzzle extends JFrame implements KeyListener
       // Chosen Size
     private Color colorb4 = new Color(0x00502550);
     private Color colorf4 = new Color(0x00FF00FF);
+    
+    // Add the tracker of the rotations per position
+    private List<Tuple3<Integer, Integer, Integer>> rotTracker = new ArrayList<>();
+    
     // Constructor of this Class
     public RotationPuzzle()
     {
@@ -288,7 +296,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
         menuSizeButton.setFont(new Font(new JMenu().getFont().getName(), new JMenu().getFont().getStyle(), 14));
         menuSize.add(menuSizeButton);
               // Size Button List
-        menuitemSizeButton = new JMenuItem[8];
+        menuitemSizeButton = new JMenuItem[16];
         for (int i = 0; i < menuitemSizeButton.length - 1; i++)
         {
             menuitemSizeButton[i] = new JMenuItem();
@@ -660,6 +668,11 @@ public class RotationPuzzle extends JFrame implements KeyListener
                 break;
             case ' ':
                 // do the rotation
+                System.out.println("x = "+selectx
+                                  +"   y = "+selecty
+                                  +"   clockwise = "+!isRotationAntiClockwise
+                                  +"   rot+1 = "+isRotation1
+                                  +"   rot2 = "+isRotation2);
                 rotateFieldNumbersAction(selectx, selecty);
                 refreshFieldButton();
                 break;
@@ -667,6 +680,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
                 fieldMix();
                 break;
             case 'n':
+                System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
                 fieldNew();
                 break;
         }
@@ -684,6 +698,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
             switch( keyCode )
             { 
                 case KeyEvent.VK_UP:
+                case KeyEvent.VK_NUMPAD8:
                     // handle up
                     if (selecty > 1)
                     {
@@ -693,6 +708,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
                     }
                     break;
                 case KeyEvent.VK_DOWN:
+                case KeyEvent.VK_NUMPAD5:
                     // handle down
                     if (selecty < fieldSizeY - 2)
                     {
@@ -702,6 +718,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
                     }
                     break;
                 case KeyEvent.VK_LEFT:
+                case KeyEvent.VK_NUMPAD4:
                     // handle left
                     if (selectx > 1)
                     {
@@ -711,6 +728,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
                     }
                     break;
                 case KeyEvent.VK_RIGHT :
+                case KeyEvent.VK_NUMPAD6:
                     // handle right
                     if (selectx < fieldSizeX - 2)
                     {
@@ -743,7 +761,11 @@ public class RotationPuzzle extends JFrame implements KeyListener
             keyCode == KeyEvent.VK_UP ||
             keyCode == KeyEvent.VK_DOWN ||
             keyCode == KeyEvent.VK_LEFT ||
-            keyCode == KeyEvent.VK_RIGHT)
+            keyCode == KeyEvent.VK_RIGHT ||
+            keyCode == KeyEvent.VK_NUMPAD8 ||
+            keyCode == KeyEvent.VK_NUMPAD5 ||
+            keyCode == KeyEvent.VK_NUMPAD4 ||
+            keyCode == KeyEvent.VK_NUMPAD6)
         {
             refreshFieldButton(true);
         }
