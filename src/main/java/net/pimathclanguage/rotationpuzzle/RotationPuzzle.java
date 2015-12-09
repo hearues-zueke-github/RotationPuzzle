@@ -337,6 +337,10 @@ public class RotationPuzzle extends JFrame implements KeyListener
             }
         });
         menuSettings.add(checkboxmenuitemShowColor);
+            // Change Keys
+        menuitemChangeKeys = createNewJMenuItem("Change Keys",
+                                                null,
+                                                menuSettings);
           // Help
         menuHelp = new JMenu();
         menuHelp.setText("Help");
@@ -390,7 +394,7 @@ public class RotationPuzzle extends JFrame implements KeyListener
         jMenuBar.add(newObject);
         return newObject;
     }
-    private JMenuItem createNewJMenuItem(String text, ActionListener newActionListener, JMenuBar jMenuBar)
+    private JMenuItem createNewJMenuItem(String text, ActionListener newActionListener, JMenu jMenuBar)
     {
         JMenu newObject = new JMenu();
         newObject.setText(text);
