@@ -1,60 +1,77 @@
 package net.pimathclanguage.rotationpuzzle;
 
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Font;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.io.*;
 import java.util.*;
-import javax.swing.JButton;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JFrame;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JSeparator;
+import java.util.List;
+import java.util.concurrent.Semaphore;
+import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.border.LineBorder;
 
-import com.google.common.collect.Lists;
-import com.sun.org.apache.xpath.internal.operations.Bool;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.experimental.Delegate;
 import net.pimathclanguage.rotationpuzzle.Tuple.Tuple2;
 import net.pimathclanguage.rotationpuzzle.Tuple.Tuple3;
 import net.pimathclanguage.rotationpuzzle.Tuple.Tuple4;
+
+import net.pimathclanguage.rotationpuzzle.DataClasses.HashTup2ListTup4;
+import net.pimathclanguage.rotationpuzzle.DataClasses.HashIntHashTup2ListTup4;
+import net.pimathclanguage.rotationpuzzle.DataClasses.HashTup2HashIntHashTup2ListTup4;
+
 import net.pimathclanguage.rotationpuzzle.FunctionInterfaces.Function2;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+
 public class RotationPuzzle extends JFrame implements KeyListener {
+  private SolvingInputs solvingInputs = new SolvingInputs();
+  private HashTup2HashIntHashTup2ListTup4 movingTableFields;
+  private HashIntHashTup2ListTup4 currentMovingTable;
+  private ArrayList<Integer> numsOrder;
+  private HashMap<String, ArrayList<Tuple4<Integer, Integer, Integer, Boolean>>> movingTable9x9;
+
+  private Semaphore doingSlowlyMoves = new Semaphore(1);
+  private int movingSpeedTime; // ms
+
+  private MenuItemSizeFieldActionListener currentMenuItemSizeFieldActionListener = null;
+  private MenuItemSolvingSpeedActionListener currentMenuItemSolvingSpeedActionListener = null;
+  private Semaphore semaphoreActionListener = new Semaphore(1);
+
   // Menubar with Menus and MenuItems
   private JMenuBar menuBar;
-  // Main
+  //// Main
   private JMenu menuMain;
   private JMenuItem menuitemNew;
   private JMenuItem menuitemMix;
   private JMenuItem menuitemSolve;
   private JMenuItem menuitemExit;
-  // Size
-  private JMenu menuSize;
-  // Size of Field
+  //// Size
+  private JMenu menuSettings;
+  ////// Size of Field
   private JMenu menuSizeField;
   private JMenuItem[] menuitemSizeField;
   private int sizeFieldChosen;
-  // Size of Buttons
+  ////// Size of Buttons
   private JMenu menuSizeButton;
   private JMenuItem[] menuitemSizeButton;
   private int sizeButtonChosen;
-  // Settings
-  private JMenu menuSettings;
+  //// Settings
+  private JMenu menuSettings2;
   private JCheckBoxMenuItem checkboxmenuitemAutoCenter;
   private JCheckBoxMenuItem checkboxmenuitemShowColor;
+  ////// Solving speed
+  private JMenu menuSolvingSpeed;
+  private JMenuItem[] menuitemSolvingSpeed;
+  private int lastUsedIdxMenuItemSolvingSpeed;
+  ////
   private JMenuItem menuitemChangeKeys;
-  // Help
+  //// Help
   private JMenu menuHelp;
   private JMenuItem menuitemIntro;
   private JMenuItem menuitemInfo;
@@ -95,12 +112,16 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   // Chosen Size
   private Color colorb4 = new Color(0x00502550);
   private Color colorf4 = new Color(0x00FF00FF);
+  // Selected by solve
+  private Color colorb5 = new Color(0xA9A929);
+  private Color colorf5 = new Color(0x0F142A);
 
   // Add the tracker of the rotations per position
   private List<Tuple3<Integer, Integer, Integer>> rotTracker = new ArrayList<>();
 
   // Constructor of this Class
   public RotationPuzzle() {
+    movingTableFields = new HashTup2HashIntHashTup2ListTup4();
     // Default
     setVariablesDefault();
     setObjectDefault();
@@ -142,8 +163,8 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   }
 
   private void setObjectDefault() {
-    fieldSizeX = 4;
-    fieldSizeY = 4;
+    fieldSizeX = 5;
+    fieldSizeY = 5;
     bfW = 60;
     bfH = 60;
     bfL = 20;
@@ -152,12 +173,15 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     createButtonField();
     setButtonFieldBound();
     setMenuBar();
+    loadNewMovingTable();
+    loadMovingTable9x9();
   }
 
   private void createButtonField() {
-    Font newFont = new Font((new JButton()).getFont().getFontName(), Font.BOLD, 20);
-    fieldInt = new int[20][20];
+    Font newFont = new Font((new JButton()).getFont().getFontName(), Font.BOLD, 18);
+    this.fieldInt = new int[20][20];
     fieldButton = new JButton[20][20];
+
     for (int j = 0; j < fieldButton.length; j++) {
       for (int i = 0; i < fieldButton[j].length; i++) {
         fieldButton[j][i] = new JButton();
@@ -172,9 +196,10 @@ public class RotationPuzzle extends JFrame implements KeyListener {
         btn.addActionListener(new ButtonActionListener(i, j));
         btn.setFont(newFont);
         btn.setFocusable(false);
-        fieldInt[j][i] = i + fieldSizeX * j + 1;
+        this.fieldInt[j][i] = i + fieldSizeX * j + 1;
       }
     }
+
     for (int j = 1; j < fieldButton.length - 1; j++) {
       for (int i = 1; i < fieldButton[j].length - 1; i++) {
         JButton btn = fieldButton[j][i];
@@ -201,7 +226,7 @@ public class RotationPuzzle extends JFrame implements KeyListener {
           } else {
             btn.setBorder(null);
           }
-          fieldInt[j][i] = i + j * fieldSizeX + 1;
+          this.fieldInt[j][i] = i + j * fieldSizeX + 1;
         }
       }
     }
@@ -209,6 +234,7 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
   // Define the Bar with there Elements
   private void setMenuBar() {
+    Font font14 = new Font(new JMenu().getFont().getName(), new JMenu().getFont().getStyle(), 14);
     menuBar = new JMenuBar();
     // Main
     menuMain = new JMenu();
@@ -257,22 +283,33 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     });
     menuMain.add(menuitemExit);
     // Size
-    menuSize = new JMenu();
-    menuSize.setText("Size");
-    menuBar.add(menuSize);
+    menuSettings = new JMenu();
+    menuSettings.setText("Settings");
+    menuBar.add(menuSettings);
     // Size of Field
     menuSizeField = new JMenu();
     menuSizeField.setText("Size of Field");
-    menuSizeField.setFont(new Font(new JMenu().getFont().getName(), new JMenu().getFont().getStyle(), 14));
-    menuSize.add(menuSizeField);
+    menuSizeField.setFont(font14);
+    menuSettings.add(menuSizeField);
     // Size Field List
-    menuitemSizeField = new JMenuItem[10];
+    menuitemSizeField = new JMenuItem[11];
     for (int i = 0; i < menuitemSizeField.length - 1; i++) {
       menuitemSizeField[i] = new JMenuItem();
       menuitemSizeField[i].setText(String.valueOf(i + 4) + "x" + String.valueOf(i + 4));
-      menuitemSizeField[i].addActionListener(new MenuItemSizeFieldActionListener(i, i + 4, false));
+      ActionListener menuFieldListener = new MenuItemSizeFieldActionListener(i, i + 4, false);
+      menuitemSizeField[i].addActionListener(menuFieldListener);
       menuSizeField.add(menuitemSizeField[i]);
     }
+    for (int i = 0; i < menuitemSizeField.length - 1; ++i) {
+      MenuItemSizeFieldActionListener menuFieldListener = (MenuItemSizeFieldActionListener)menuitemSizeField[i].getActionListeners()[0];
+      if (i > 0) {
+        menuFieldListener.setPrevActionListener((MenuItemSizeFieldActionListener)menuitemSizeField[i - 1].getActionListeners()[0]);
+      }
+      if (i < menuitemSizeField.length - 2) {
+        menuFieldListener.setNextActionListener((MenuItemSizeFieldActionListener)menuitemSizeField[i + 1].getActionListeners()[0]);
+      }
+    }
+    currentMenuItemSizeFieldActionListener = (MenuItemSizeFieldActionListener)menuitemSizeField[1].getActionListeners()[0];
     // Make the last one for Custom Size Field
     int iter = menuitemSizeField.length - 1;
     menuitemSizeField[iter] = new JMenuItem();
@@ -286,8 +323,39 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     // Size of Button
     menuSizeButton = new JMenu();
     menuSizeButton.setText("Size of Button");
-    menuSizeButton.setFont(new Font(new JMenu().getFont().getName(), new JMenu().getFont().getStyle(), 14));
-    menuSize.add(menuSizeButton);
+    menuSizeButton.setFont(font14);
+    menuSettings.add(menuSizeButton);
+    // Solving Time
+    menuSolvingSpeed = new JMenu();
+    menuSolvingSpeed.setText("Solving Speed");
+    menuSolvingSpeed.setFont(font14);
+
+    int[] timesInMilliSeconds = new int[]{5, 10, 20, 50, 100, 200, 500};
+    menuitemSolvingSpeed = new JMenuItem[timesInMilliSeconds.length];
+
+    lastUsedIdxMenuItemSolvingSpeed = 0;
+    for (int i = 0; i < timesInMilliSeconds.length; ++i) {
+      JMenuItem jmi = new JMenuItem();
+      jmi.setText(timesInMilliSeconds[i]+" ms");
+      jmi.addActionListener(new MenuItemSolvingSpeedActionListener(i, jmi, timesInMilliSeconds[i]));
+      menuitemSolvingSpeed[i] = jmi;
+      menuSolvingSpeed.add(jmi);
+    }
+
+    for (int i = 0; i < timesInMilliSeconds.length; ++i) {
+      MenuItemSolvingSpeedActionListener now = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[i].getActionListeners()[0];
+      if (i > 0) {
+        now.prevActionListener = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[i - 1].getActionListeners()[0];
+      }
+      if (i < timesInMilliSeconds.length - 2) {
+        now.nextActionListener = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[i + 1].getActionListeners()[0];
+      }
+    }
+
+    menuitemSolvingSpeed[lastUsedIdxMenuItemSolvingSpeed].getActionListeners()[0].actionPerformed(new ActionEvent(this, 0, "dummy click"));
+    currentMenuItemSolvingSpeedActionListener = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[lastUsedIdxMenuItemSolvingSpeed].getActionListeners()[0];
+
+    menuSettings.add(menuSolvingSpeed);
     // Size Button List
     menuitemSizeButton = new JMenuItem[16];
     for (int i = 0; i < menuitemSizeButton.length - 1; i++) {
@@ -307,14 +375,14 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     menuitemSizeButton[sizeButtonChosen].setBackground(colorb4);
     menuitemSizeButton[sizeButtonChosen].setForeground(colorf4);
     // Settings
-    menuSettings = new JMenu();
-    menuSettings.setText("Settings");
-    menuBar.add(menuSettings);
+    menuSettings2 = new JMenu();
+    menuSettings2.setText("Settings");
+    menuBar.add(menuSettings2);
     // AutoCenter
     checkboxmenuitemAutoCenter = new JCheckBoxMenuItem();
     checkboxmenuitemAutoCenter.setText("Auto Center");
     checkboxmenuitemAutoCenter.setState(true);
-    menuSettings.add(checkboxmenuitemAutoCenter);
+    menuSettings2.add(checkboxmenuitemAutoCenter);
     // Show Color
     checkboxmenuitemShowColor = new JCheckBoxMenuItem();
     checkboxmenuitemShowColor.setText("Show Color");
@@ -326,11 +394,12 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
       }
     });
-    menuSettings.add(checkboxmenuitemShowColor);
+    menuSettings2.add(checkboxmenuitemShowColor);
+
     // Change Keys
     menuitemChangeKeys = createNewJMenuItem("Change Keys",
         null,
-        menuSettings);
+        menuSettings2);
     // Help
     menuHelp = new JMenu();
     menuHelp.setText("Help");
@@ -390,11 +459,9 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   }
 
   private class ButtonActionListener implements ActionListener {
-    @Getter
-    @Setter
+    @Getter @Setter
     public int x;
-    @Getter
-    @Setter
+    @Getter @Setter
     public int y;
 
     public ButtonActionListener(int x, int y) {
@@ -412,6 +479,228 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     }
   }
 
+  public void createNewNumsOrder() {
+    int sizeY = this.fieldSizeY;
+    int sizeX = this.fieldSizeX;
+
+    numsOrder = new ArrayList<>();
+
+    // Do first all the lower part
+    for (int y = sizeY-1; y > 2; --y) {
+      for (int x = sizeX-1; x > -1; --x) {
+        numsOrder.add(y*sizeX+x);
+      }
+    }
+
+    // Then next the upper right part
+    for (int x = sizeX-1; x > 2; --x) {
+      for (int y = 2; y > -1; --y) {
+        numsOrder.add(y*sizeX+x);
+      }
+    }
+  }
+
+  private void loadNewMovingTable() {
+    int sizeX = this.fieldSizeX;
+    int sizeY = this.fieldSizeY;
+
+    createNewNumsOrder();
+
+    // TODO: move this part to a own written class!
+    Tuple2<Integer, Integer> fieldSize = new Tuple2<>(sizeX, sizeY);
+    HashIntHashTup2ListTup4 movingTable = new HashIntHashTup2ListTup4();
+    if (movingTableFields.v.containsKey(fieldSize)) {
+      currentMovingTable = movingTableFields.v.get(fieldSize);
+      return;
+    }
+    movingTableFields.v.put(fieldSize, movingTable);
+
+    Function2<Integer, HashTup2ListTup4> fillMovingTable = (num_, movingFields_) -> {
+      int row = num_ / sizeX;
+      int col = num_ % sizeX;
+      if ((row >= 0 && row <= 2) && (col >= 0 && col <= 2)) {
+        return;
+      }
+
+      if (row > 2) {
+        boolean lastRowFinished = false;
+        for (int y = 0; y < sizeY; ++y) {
+          for (int x = 0; x < sizeX; ++x) {
+            if (y * sizeX + x >= num_) {
+              lastRowFinished = true;
+              break;
+            }
+            movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
+          }
+          if (lastRowFinished) {
+            break;
+          }
+        }
+      } else {
+        for (int x = 0; x < col; ++x) {
+          for (int y = 0; y < 3; ++y) {
+            movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
+          }
+        }
+
+        for (int y = 0; y < row; ++y) {
+          movingFields_.v.put(new Tuple2<>(col, y), new ArrayList<>());
+        }
+      }
+    };
+
+    for (int num = 0; num < sizeX * sizeY; ++num) {
+      HashTup2ListTup4 movingFields = new HashTup2ListTup4();
+      movingTable.v.put(num, movingFields);
+      fillMovingTable.func(num, movingFields);
+    }
+
+    try {
+      String jsonInputString = solvingInputs.jsonInputStrings.get(sizeX);
+      byte[] val = new byte[jsonInputString.length() / 2];
+      for (int i = 0; i < val.length; i++) {
+        int index = i * 2;
+        int j = Integer.parseInt(jsonInputString.substring(index, index + 2), 16);
+        val[i] = (byte) j;
+      }
+      InputStream myInputStream = new ByteArrayInputStream(val);
+      Reader targetReader = new InputStreamReader(myInputStream);
+      System.out.println("Should try to read the string as FileReader object!");
+      Object obj = new JSONParser().parse(targetReader);
+      JSONObject jo = (JSONObject)obj;
+      for (Iterator iterator = jo.keySet().iterator(); iterator.hasNext(); ) {
+        String key = (String) iterator.next();
+
+        Object obj2 = jo.get(key);
+        JSONObject jo2 = (JSONObject)obj2;
+        for (Iterator iterator2 = jo2.keySet().iterator(); iterator2.hasNext(); ) {
+          String key2 = (String) iterator2.next();
+
+          int cellNumber = Integer.valueOf(key2);
+
+          Object obj3 = jo2.get(key2);
+          JSONObject jo3 = (JSONObject)obj3;
+          for (Iterator iterator3 = jo3.keySet().iterator(); iterator3.hasNext(); ) {
+            String key3 = (String) iterator3.next();
+
+            String centerCellArr[] = key3.replaceAll(", ", ",").replaceAll("\\(", "").replaceAll("\\)", "").split(",");
+            Tuple2<Integer, Integer> centerCell = new Tuple2<>(Integer.valueOf(centerCellArr[0]), Integer.valueOf(centerCellArr[1]));
+
+            Object obj4 = jo3.get(key3);
+            JSONArray jo4 = (JSONArray)obj4;
+            ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> moves = new ArrayList<>();
+            for (int i = 0; i < jo4.size(); ++i) {
+              String move = (String) jo4.get(i);
+              String movePrepare = move.replaceAll(", ", ",").replace("False", "false").replace("True", "true").replaceAll("\\(", "").replaceAll("\\)", "");
+              String moveSplit[] = movePrepare.split(",");
+              int x = Integer.valueOf(moveSplit[0]);
+              int y = Integer.valueOf(moveSplit[1]);
+              int r = Integer.valueOf(moveSplit[2]);
+              boolean c = Boolean.valueOf(moveSplit[3]);
+              Tuple4<Integer, Integer, Integer, Boolean> t4 = new Tuple4<>(x, y, r, c);
+              moves.add(t4);
+            }
+
+            if (movingTable.v.containsKey(cellNumber)) {
+              HashTup2ListTup4 movingTabl = movingTable.v.get(cellNumber);
+              if (movingTabl.v.containsKey(centerCell)) {
+                ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> moves_ = movingTabl.v.get(centerCell);
+                moves_.addAll(moves);
+              }
+            }
+          }
+        }
+      }
+
+      currentMovingTable = movingTable;
+    } catch (Exception e) {
+      System.out.println("An Exception occured!");
+      e.printStackTrace();
+      currentMovingTable = null;
+    }
+  }
+
+  private void loadMovingTable9x9() {
+//    String filePath = "all_moves_3x3_field_text.txt";
+
+    // TODO: add a thread for reading the file while something else
+    movingTable9x9 = null;
+//    if (true)
+//      return;
+
+    movingTable9x9 = new HashMap<>();
+    int i = 0;
+    BufferedReader reader;
+    try {
+      InputStream is = net.pimathclanguage.rotationpuzzle.RotationPuzzle.class.getResourceAsStream("/all_moves_3x3_field_text.txt");
+//      InputStream is = getClass().getResourceAsStream("all_moves_3x3_field_text.txt");
+      InputStreamReader isr = new InputStreamReader(is);
+      reader = new BufferedReader(isr);
+//      reader = new BufferedReader(new FileReader(filePath));
+      String line = reader.readLine();
+      while (line != null) {
+        if (++i % 10000 == 0) {
+          System.out.println("i: "+i);
+        }
+        String field3x3 = line.substring(0, 9);
+
+        String movesStr = line.substring(9);
+
+        ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList = new ArrayList<>();
+        int parts = movesStr.length() / 4;
+        for (int j = 0; j < parts; ++j) {
+          String movePart = movesStr.substring(4*j, 4*(j+1));
+          int x = Integer.valueOf(movePart.substring(0, 1));
+          int y = Integer.valueOf(movePart.substring(1, 2));
+          int r = Integer.valueOf(movePart.substring(2, 3));
+          boolean c = Integer.valueOf(movePart.substring(3, 4)) == 1;
+          movesList.add(new Tuple4<>(x, y, r, c));
+        }
+
+        movingTable9x9.put(field3x3, movesList);
+
+        line = reader.readLine();
+      }
+      reader.close();
+    } catch (IOException e) {
+      e.printStackTrace();
+      movingTable9x9 = null;
+    }
+  }
+
+  private class MenuItemSolvingSpeedActionListener implements ActionListener {
+    private RotationPuzzle rp = RotationPuzzle.this;
+    private int idx_;
+    private JMenuItem jmi_;
+    private int movingSpeedTime_;
+
+    @Getter @Setter
+    private MenuItemSolvingSpeedActionListener prevActionListener = null;
+    @Getter @Setter
+    private MenuItemSolvingSpeedActionListener nextActionListener = null;
+
+    MenuItemSolvingSpeedActionListener(int idx, JMenuItem jmi, int movingSpeedTime) {
+      idx_ = idx;
+      jmi_ = jmi;
+      movingSpeedTime_ = movingSpeedTime;
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      JMenuItem prevJmi = menuitemSolvingSpeed[lastUsedIdxMenuItemSolvingSpeed];
+      prevJmi.setBackground(colorb0);
+      prevJmi.setForeground(colorf0);
+
+      jmi_.setBackground(colorb4);
+      jmi_.setForeground(colorf4);
+
+      rp.lastUsedIdxMenuItemSolvingSpeed = idx_;
+      rp.movingSpeedTime = movingSpeedTime_;
+
+      rp.currentMenuItemSolvingSpeedActionListener = this;
+    }
+  }
+
   private class MenuItemSizeFieldActionListener implements ActionListener {
     @Getter
     @Setter
@@ -422,6 +711,23 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     @Getter
     @Setter
     public boolean isCustom;
+    @Getter @Setter
+    public MenuItemSizeFieldActionListener nextActionListener = null;
+    @Getter @Setter
+    public MenuItemSizeFieldActionListener prevActionListener = null;
+
+    public void doNext() {
+      if (nextActionListener != null) {
+        nextActionListener.actionPerformed(new ActionEvent(this, index, "from SizeFieldAL"));
+      }
+    }
+
+    public void doPrev() {
+      if (prevActionListener != null) {
+        prevActionListener.actionPerformed(new ActionEvent(this, index, "from SizeFieldAL"));
+      }
+    }
+
 
     public MenuItemSizeFieldActionListener(int index, int size, boolean isCustom) {
       this.index = index;
@@ -448,7 +754,12 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       selecty = 1;
       isSelectActive = false;
       refreshFieldButton(isSelectActive);
+      loadNewMovingTable();
       System.out.println("Field Menu Item #" + String.valueOf(index));
+
+      try { RotationPuzzle.this.semaphoreActionListener.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+      RotationPuzzle.this.currentMenuItemSizeFieldActionListener = this;
+      RotationPuzzle.this.semaphoreActionListener.release();
     }
   }
 
@@ -494,33 +805,33 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   }
 
   public void rotateFieldNumbersClockwise(int x, int y) {
-    if (y > 0 && y < fieldInt.length - 1) {
-      if (x > 0 && x < fieldInt[y].length - 1) {
-        int number = fieldInt[y - 1][x - 1];
-        fieldInt[y - 1][x - 1] = fieldInt[y - 0][x - 1];
-        fieldInt[y - 0][x - 1] = fieldInt[y + 1][x - 1];
-        fieldInt[y + 1][x - 1] = fieldInt[y + 1][x - 0];
-        fieldInt[y + 1][x - 0] = fieldInt[y + 1][x + 1];
-        fieldInt[y + 1][x + 1] = fieldInt[y + 0][x + 1];
-        fieldInt[y + 0][x + 1] = fieldInt[y - 1][x + 1];
-        fieldInt[y - 1][x + 1] = fieldInt[y - 1][x + 0];
-        fieldInt[y - 1][x + 0] = number;
+    if (y > 0 && y < this.fieldInt.length - 1) {
+      if (x > 0 && x < this.fieldInt[y].length - 1) {
+        int number = this.fieldInt[y - 1][x - 1];
+        this.fieldInt[y - 1][x - 1] = this.fieldInt[y - 0][x - 1];
+        this.fieldInt[y - 0][x - 1] = this.fieldInt[y + 1][x - 1];
+        this.fieldInt[y + 1][x - 1] = this.fieldInt[y + 1][x - 0];
+        this.fieldInt[y + 1][x - 0] = this.fieldInt[y + 1][x + 1];
+        this.fieldInt[y + 1][x + 1] = this.fieldInt[y + 0][x + 1];
+        this.fieldInt[y + 0][x + 1] = this.fieldInt[y - 1][x + 1];
+        this.fieldInt[y - 1][x + 1] = this.fieldInt[y - 1][x + 0];
+        this.fieldInt[y - 1][x + 0] = number;
       }
     }
   }
 
   public void rotateFieldNumbersAntiClockwise(int x, int y) {
-    if (y > 0 && y < fieldInt.length - 1) {
-      if (x > 0 && x < fieldInt[y].length - 1) {
-        int number = fieldInt[y - 1][x + 0];
-        fieldInt[y - 1][x + 0] = fieldInt[y - 1][x + 1];
-        fieldInt[y - 1][x + 1] = fieldInt[y + 0][x + 1];
-        fieldInt[y + 0][x + 1] = fieldInt[y + 1][x + 1];
-        fieldInt[y + 1][x + 1] = fieldInt[y + 1][x - 0];
-        fieldInt[y + 1][x - 0] = fieldInt[y + 1][x - 1];
-        fieldInt[y + 1][x - 1] = fieldInt[y - 0][x - 1];
-        fieldInt[y - 0][x - 1] = fieldInt[y - 1][x - 1];
-        fieldInt[y - 1][x - 1] = number;
+    if (y > 0 && y < this.fieldInt.length - 1) {
+      if (x > 0 && x < this.fieldInt[y].length - 1) {
+        int number = this.fieldInt[y - 1][x + 0];
+        this.fieldInt[y - 1][x + 0] = this.fieldInt[y - 1][x + 1];
+        this.fieldInt[y - 1][x + 1] = this.fieldInt[y + 0][x + 1];
+        this.fieldInt[y + 0][x + 1] = this.fieldInt[y + 1][x + 1];
+        this.fieldInt[y + 1][x + 1] = this.fieldInt[y + 1][x - 0];
+        this.fieldInt[y + 1][x - 0] = this.fieldInt[y + 1][x - 1];
+        this.fieldInt[y + 1][x - 1] = this.fieldInt[y - 0][x - 1];
+        this.fieldInt[y - 0][x - 1] = this.fieldInt[y - 1][x - 1];
+        this.fieldInt[y - 1][x - 1] = number;
       }
     }
   }
@@ -566,12 +877,12 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   public void refreshFieldButton(boolean isRefreshSelect) {
     for (int j = 0; j < fieldSizeY; j++) {
       for (int i = 0; i < fieldSizeX; i++) {
-        fieldButton[j][i].setText(String.valueOf(fieldInt[j][i]));
+        fieldButton[j][i].setText(String.valueOf(this.fieldInt[j][i]));
         if (!(i == selectx && j == selecty)) {
           if (!checkboxmenuitemShowColor.getState()) {
             fieldButton[j][i].setBackground(colorb0);
             fieldButton[j][i].setForeground(colorf0);
-          } else if (fieldInt[j][i] == i + fieldSizeX * j + 1) {
+          } else if (this.fieldInt[j][i] == i + fieldSizeX * j + 1) {
             fieldButton[j][i].setBackground(colorb1);
             fieldButton[j][i].setForeground(colorf1);
           } else {
@@ -585,7 +896,7 @@ public class RotationPuzzle extends JFrame implements KeyListener {
           if (!checkboxmenuitemShowColor.getState()) {
             fieldButton[j][i].setBackground(colorb0);
             fieldButton[j][i].setForeground(colorf0);
-          } else if (fieldInt[j][i] == i + fieldSizeX * j + 1) {
+          } else if (this.fieldInt[j][i] == i + fieldSizeX * j + 1) {
             fieldButton[j][i].setBackground(colorb1);
             fieldButton[j][i].setForeground(colorf1);
           } else {
@@ -600,122 +911,60 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   public void fieldNew() {
     for (int j = 0; j < fieldButton.length; j++) {
       for (int i = 0; i < fieldButton[j].length; i++) {
-        fieldInt[j][i] = i + fieldSizeX * j + 1;
+        this.fieldInt[j][i] = i + fieldSizeX * j + 1;
       }
     }
     refreshFieldButton(isSelectActive);
   }
 
   public void fieldMix() {
-    Random r = new Random();
+    if (!doingSlowlyMoves.tryAcquire()) { // TODO: is not working correctly!
+      return;
+    }
+//    try { doingSlowlyMoves.acquire(); } catch (Exception e) { e.printStackTrace(); }
+
+    ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList = new ArrayList<>();
+
+    Random random = new Random();
     int maxX = fieldSizeX - 2;
     int maxY = fieldSizeY - 2;
-    int maxRotation = 6;
-    int rotations = 0;
     for (int i = 0; i < fieldSizeX * fieldSizeY; i++) {
-      rotateFieldNumbers(
-          1 + Math.abs(r.nextInt()) % maxX,
-          1 + Math.abs(r.nextInt()) % maxY,
-          Math.abs(r.nextInt()) % 4+1,
-          (Math.abs(r.nextInt() % 2) == 0));
+      int x = 1 + Math.abs(random.nextInt()) % maxX;
+      int y = 1 + Math.abs(random.nextInt()) % maxY;
+      int r = Math.abs(random.nextInt()) % 4+1;
+      boolean c = (Math.abs(random.nextInt() % 2) == 0);
+
+      movesList.add(new Tuple4<>(x, y, r, c));
     }
-    refreshFieldButton(isSelectActive);
+
+    doTheMovesSlowly(movesList);
+
+    doingSlowlyMoves.release();
   }
 
-  public void fieldSolve() {
-    int sizeX = this.fieldSizeX;
+  private void fieldSolveFirstPart(ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList) {
     int sizeY = this.fieldSizeY;
+    int sizeX = this.fieldSizeX;
 
-    // TODO: move this part to a own written class!
-    HashMap<Integer, Tup2ListTup4> movingTable = new HashMap<>();
-    Function2<Integer, Tup2ListTup4> fillMovingTable =
-        (num_, movingFields_) -> {
-      int row = (num_ - 1) / sizeX;
-      int col = (num_ - 1) % sizeX;
-      if ((row >= 0 && row <= 2) && (col >= 0 && col <= 2)) {
-        return;
-      }
+    for (int idx = 0; idx < numsOrder.size(); ++idx) {
+      int num = numsOrder.get(idx);
+      HashTup2ListTup4 mt = currentMovingTable.v.get(num);
 
-      boolean lastRowFinished = false;
-      for (int y = 3; y < sizeY; ++y) {
-        for (int x = 0; x < sizeX; ++x) {
-          if (y * sizeX + x >= num_ - 1) {
-            lastRowFinished = true;
-            break;
-          }
-          movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
-        }
-        if (lastRowFinished) {
-          break;
-        }
-      }
-
-      for (int y = 0; y < 3; ++y) {
-        for (int x = 0; x < 3; ++x) {
-          movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
-        }
-      }
-
-      if (row > 2) {
-        for (int x = 0; x < sizeX; ++x) {
-          for (int y = 0; y < 3; ++y) {
-            movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
-          }
-        }
-      } else {
-        for (int x = 3; x < col - 1; ++x) {
-          for (int y = 0; y < 3; ++y) {
-            movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
-          }
-        }
-
-        for (int x = col; x < col + 1; ++x) {
-          for (int y = 0; y < 3; ++y) {
-            if (y * sizeX + x >= num_ - 1) {
-              return;
-            }
-            movingFields_.v.put(new Tuple2<>(x, y), new ArrayList<>());
-          }
-        }
-      }
-    };
-    for (int num = 1; num <= sizeX * sizeY; ++num) {
-      Tup2ListTup4 movingFields = new Tup2ListTup4();
-      movingTable.put(num, movingFields);
-      fillMovingTable.func(num, movingFields);
-    }
-
-    // TODO: move this part to a own written class too!
-    if (sizeX == 4 && sizeY == 4) {
-      Tup2ListTup4 mt16 = movingTable.get(16);
-      mt16.v.get(new Tuple2<>(0, 0)).addAll(Lists.newArrayList(new Tuple4<>(1, 1, 3, true), new Tuple4<>(2, 2, 3, true)));
-      mt16.v.get(new Tuple2<>(1, 0)).addAll(Lists.newArrayList(new Tuple4<>(1, 1, 2, true), new Tuple4<>(2, 2, 3, true)));
-      mt16.v.get(new Tuple2<>(2, 0)).addAll(Lists.newArrayList(new Tuple4<>(1, 1, 1, true), new Tuple4<>(2, 2, 3, true)));
-      mt16.v.get(new Tuple2<>(3, 0)).addAll(Lists.newArrayList(new Tuple4<>(2, 1, 1, true), new Tuple4<>(2, 2, 2, true)));
-
-      mt16.v.get(new Tuple2<>(0, 1)).addAll(Lists.newArrayList(new Tuple4<>(1, 2, 1, true), new Tuple4<>(2, 2, 4, true)));
-      mt16.v.get(new Tuple2<>(1, 1)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 4, true)));
-      mt16.v.get(new Tuple2<>(2, 1)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 3, true)));
-      mt16.v.get(new Tuple2<>(3, 1)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 2, true)));
-
-      mt16.v.get(new Tuple2<>(0, 2)).addAll(Lists.newArrayList(new Tuple4<>(1, 2, 3, false), new Tuple4<>(2, 2, 1, false)));
-      mt16.v.get(new Tuple2<>(1, 2)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 3, false)));
-      mt16.v.get(new Tuple2<>(2, 2)).addAll(Lists.newArrayList(new Tuple4<>(1, 2, 1, true), new Tuple4<>(2, 2, 1, false)));
-      mt16.v.get(new Tuple2<>(3, 2)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 1, true)));
-
-      mt16.v.get(new Tuple2<>(0, 3)).addAll(Lists.newArrayList(new Tuple4<>(1, 2, 1, false), new Tuple4<>(2, 2, 2, false)));
-      mt16.v.get(new Tuple2<>(1, 3)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 2, false)));
-      mt16.v.get(new Tuple2<>(2, 3)).addAll(Lists.newArrayList(new Tuple4<>(2, 2, 1, false)));
-
-      // Only move nr 16 for the field size 4x4!
       boolean isFoundNum = false;
       for (int y = 0; y < sizeY; ++y) {
         for (int x = 0; x < sizeX; ++x) {
-          if (this.fieldInt[y][x] == 16) {
+          if (this.fieldInt[y][x] == (num+1)) {
             isFoundNum = true;
-            ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> moves = mt16.v.get(new Tuple2<>(x, y));
+
+            if (!mt.v.containsKey(new Tuple2<>(x, y))) {
+              break;
+            }
+
+            ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> moves = mt.v.get(new Tuple2<>(x, y));
             for (int i = 0; i < moves.size(); ++i) {
-              rotateFieldNumbers(moves.get(i));
+              Tuple4<Integer, Integer, Integer, Boolean> m = moves.get(i);
+              rotateFieldNumbers(m);
+              movesList.add(m);
             }
             break;
           }
@@ -725,8 +974,177 @@ public class RotationPuzzle extends JFrame implements KeyListener {
         }
       }
     }
+  }
 
-    refreshFieldButton(isSelectActive);
+  private void fieldSolveSecondPart(ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList) {
+    int sizeX = this.fieldSizeX;
+
+    HashMap<Integer, String> changingNumbers = new HashMap<>();
+
+    for (int y = 0; y < 3; ++y) {
+      for (int x = 0; x < 3; ++x) {
+        changingNumbers.put(y*sizeX+x, ""+(y*3+x));
+      }
+    }
+
+    String field9x9 = "";
+
+    for (int y = 0; y < 3; ++y) {
+      for (int x = 0; x < 3; ++x) {
+        field9x9 += changingNumbers.get(fieldInt[y][x]-1);
+      }
+    }
+
+    System.out.println("field9x9: "+field9x9);
+
+    if (movingTable9x9 == null) {
+      return;
+    }
+
+    ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> moves = movingTable9x9.get(field9x9);
+    moves.forEach(t -> {
+      rotateFieldNumbers(t);
+      movesList.add(t);
+    });
+  }
+
+  public void fieldSolve() {
+    if (!doingSlowlyMoves.tryAcquire()) {
+      return;
+    }
+//    try { doingSlowlyMoves.acquire(); } catch (Exception e) { e.printStackTrace(); }
+
+    if (currentMovingTable == null) {
+      return;
+    }
+
+    ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList = new ArrayList<>();
+
+    int[][] fieldIntCopy = new int[fieldSizeY][];
+    for (int y = 0; y < fieldSizeY; ++y) {
+      fieldIntCopy[y] = Arrays.copyOf(fieldInt[y], fieldSizeX);
+    }
+
+    fieldSolveFirstPart(movesList);
+    fieldSolveSecondPart(movesList);
+
+    for (int y = 0; y < fieldSizeY; ++y) {
+      System.arraycopy(fieldIntCopy[y], 0, fieldInt[y], 0, fieldSizeX);
+    }
+
+    doTheMovesSlowly(movesList);
+
+    doingSlowlyMoves.release();
+  }
+
+  private void doTheMovesSlowly(ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList) {
+    (new Thread() {
+      RotationPuzzle rp = RotationPuzzle.this;
+
+      private void sleep() {
+        try { Thread.sleep(rp.movingSpeedTime); } catch (Exception e) { }
+      }
+
+      @Override
+      public void run() {
+        class A {
+          public Semaphore sem = new Semaphore(1);
+          public boolean finished = false;
+          public Tuple4<Integer, Integer, Integer, Boolean> move = null;
+          public Color cbBefore = null;
+          public Color cfBefore = null;
+          public int x = 0;
+          public int y = 0;
+          public int r = 0;
+          public boolean c = false;
+        }
+
+        A a = new A();
+
+        Runnable th1 = new Runnable() {
+          RotationPuzzle rp = RotationPuzzle.this;
+
+          @Override
+          public void run() {
+            try { a.sem.acquire(); } catch (Exception e) { }
+
+            rp.fieldButton[a.y][a.x].setBackground(colorb5);
+            rp.fieldButton[a.y][a.x].setForeground(colorf5);
+
+            a.sem.release();
+          }
+        };
+
+        Runnable th2 = new Runnable() {
+          RotationPuzzle rp = RotationPuzzle.this;
+
+          @Override
+          public void run() {
+            int x = a.x;
+            int y = a.y;
+            boolean c = a.c;
+
+            try { a.sem.acquire(); } catch (Exception e) { }
+
+            rp.rotateFieldNumbers(x, y, 1, c);
+            rp.refreshFieldButton(false);
+            rp.fieldButton[y][x].setBackground(colorb5);
+            rp.fieldButton[y][x].setForeground(colorf5);
+
+            a.sem.release();
+          }
+        };
+
+        Runnable th3 = new Runnable() {
+          RotationPuzzle rp = RotationPuzzle.this;
+
+          @Override
+          public void run() {
+            try { a.sem.acquire(); } catch (Exception e) { }
+
+            rp.fieldButton[a.y][a.x].setBackground(a.cbBefore);
+            rp.fieldButton[a.y][a.x].setForeground(a.cfBefore);
+
+            a.sem.release();
+          }
+        };
+
+        movesList.forEach(t -> {
+          try { a.sem.acquire(); } catch (Exception e) { }
+          a.move = t;
+
+          a.x = t.v1;
+          a.y = t.v2;
+          a.r = t.v3;
+          a.c = t.v4;
+
+          a.cbBefore = rp.fieldButton[a.y][a.x].getBackground();
+          a.cfBefore = rp.fieldButton[a.y][a.x].getForeground();
+
+          SwingUtilities.invokeLater(th1);
+          a.sem.release();
+          sleep();
+
+//          try { a.sem.acquire(); } catch (Exception e) { }
+//          a.finished = false;
+          for (int i = 0; i < a.r; ++i) {
+            try { a.sem.acquire(); } catch (Exception e) { }
+            SwingUtilities.invokeLater(th2);
+            a.sem.release();
+            sleep();
+          }
+
+          try { a.sem.acquire(); } catch (Exception e) { }
+          SwingUtilities.invokeLater(th3);
+          a.sem.release();
+          sleep();
+        });
+
+        try { a.sem.acquire(); } catch (Exception e) { }
+        a.finished = true;
+        a.sem.release();
+      }
+    }).start();
   }
 
   @Override
@@ -756,6 +1174,29 @@ public class RotationPuzzle extends JFrame implements KeyListener {
         break;
       case 'b':
         fieldSolve();
+        break;
+      case ',':
+        System.out.println("Pressed the ',' key!");
+        break;
+      case 'w':
+        System.out.println("Pressed the 'w' key!");
+        currentMenuItemSizeFieldActionListener.doNext();
+        break;
+      case 'q':
+        System.out.println("Pressed the 'q' key!");
+        currentMenuItemSizeFieldActionListener.doPrev();
+        break;
+      case 'e':
+        MenuItemSolvingSpeedActionListener prevSolvingSpeed = currentMenuItemSolvingSpeedActionListener.prevActionListener;
+        if (prevSolvingSpeed != null) {
+          prevSolvingSpeed.actionPerformed(new ActionEvent(this, 0, "e key"));
+        }
+        break;
+      case 'r':
+        MenuItemSolvingSpeedActionListener nextSolvingSpeed = currentMenuItemSolvingSpeedActionListener.nextActionListener;
+        if (nextSolvingSpeed != null) {
+          nextSolvingSpeed.actionPerformed(new ActionEvent(this, 0, "r key"));
+        }
         break;
       case 'n':
         System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");

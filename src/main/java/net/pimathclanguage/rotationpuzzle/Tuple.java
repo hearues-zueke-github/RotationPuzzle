@@ -91,6 +91,22 @@ public class Tuple {
                     v3 = (V3)v;
             }
         }
+
+        @Override
+        public String toString() {
+            return "("+v1.toString()+", "+v2.toString()+", "+v3.toString()+")";
+        }
+
+        @Override
+        public int hashCode() {
+            return v1.hashCode() ^ v2.hashCode() ^ v3.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            Tuple3<V1, V2, V3> oc = (Tuple3<V1, V2, V3>)o;
+            return v1.equals(oc.v1) && v2.equals(oc.v2) && v3.equals(oc.v3);
+        }
     }
 
     public final static class Tuple4<V1, V2, V3, V4> {
@@ -143,6 +159,22 @@ public class Tuple {
                     this.v4 = (V4)v;
                     break;
             }
+        }
+
+        @Override
+        public String toString() {
+            return "("+v1.toString()+", "+v2.toString()+", "+v3.toString()+", "+v4.toString()+")";
+        }
+
+        @Override
+        public int hashCode() {
+            return v1.hashCode() ^ v2.hashCode() ^ v3.hashCode() ^ v4.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            Tuple4<V1, V2, V3, V4> oc = (Tuple4<V1, V2, V3, V4>)o;
+            return v1.equals(oc.v1) && v2.equals(oc.v2) && v3.equals(oc.v3) && v4.equals(oc.v4);
         }
     }
 
