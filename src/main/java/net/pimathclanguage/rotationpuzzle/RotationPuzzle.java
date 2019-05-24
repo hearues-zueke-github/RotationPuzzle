@@ -33,15 +33,33 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   private SolvingInputs solvingInputs = new SolvingInputs();
   private HashTup2HashIntHashTup2ListTup4 movingTableFields;
   private HashIntHashTup2ListTup4 currentMovingTable;
+  private Semaphore semaphoreMovingTableFields = new Semaphore(1);
+
   private ArrayList<Integer> numsOrder;
   private HashMap<String, ArrayList<Tuple4<Integer, Integer, Integer, Boolean>>> movingTable9x9;
+  private Semaphore semaphoreMovingTable9x9 = new Semaphore(1);
 
   private Semaphore doingSlowlyMoves = new Semaphore(1);
   private int movingSpeedTime; // ms
 
   private MenuItemSizeFieldActionListener currentMenuItemSizeFieldActionListener = null;
+  private MenuItemSizeButtonActionListener currentMenuItemSizeButtonActionListener = null;
   private MenuItemSolvingSpeedActionListener currentMenuItemSolvingSpeedActionListener = null;
   private Semaphore semaphoreActionListener = new Semaphore(1);
+
+  private Semaphore semaphoreJComponents = new Semaphore(1);
+
+  // Labels
+  private JLabel labelFieldSizeText;
+  private JLabel labelFieldSize;
+  private JLabel labelButtonSizeText;
+  private JLabel labelButtonSize;
+  private JLabel labelSolveSpeedText;
+  private JLabel labelSolveSpeed;
+
+  private JLabel labelFrame;
+  private int labelThickness = 6;
+  private int labelSpacing = 3;
 
   // Menubar with Menus and MenuItems
   private JMenuBar menuBar;
@@ -51,25 +69,26 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   private JMenuItem menuitemMix;
   private JMenuItem menuitemSolve;
   private JMenuItem menuitemExit;
-  //// Size
+  //// Settings
   private JMenu menuSettings;
   ////// Size of Field
   private JMenu menuSizeField;
+  private int[] fieldSizes;
   private JMenuItem[] menuitemSizeField;
   private int sizeFieldChosen;
   ////// Size of Buttons
   private JMenu menuSizeButton;
+  private int[] buttonSizes;
   private JMenuItem[] menuitemSizeButton;
   private int sizeButtonChosen;
-  //// Settings
-  private JMenu menuSettings2;
-  private JCheckBoxMenuItem checkboxmenuitemAutoCenter;
-  private JCheckBoxMenuItem checkboxmenuitemShowColor;
   ////// Solving speed
   private JMenu menuSolvingSpeed;
+  private int[] timesInMilliSeconds;
   private JMenuItem[] menuitemSolvingSpeed;
   private int lastUsedIdxMenuItemSolvingSpeed;
-  ////
+  ////// Other
+  private JCheckBoxMenuItem checkboxmenuitemAutoCenter;
+  private JCheckBoxMenuItem checkboxmenuitemShowColor;
   private JMenuItem menuitemChangeKeys;
   //// Help
   private JMenu menuHelp;
@@ -115,6 +134,11 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   // Selected by solve
   private Color colorb5 = new Color(0xA9A929);
   private Color colorf5 = new Color(0x0F142A);
+  // Label colors
+  private Color colorlb0 = new Color(0x122438);
+  private Color colorlf0 = new Color(0xD0D0A0);
+  private Color colorlb1 = new Color(0x4D7A5B);
+  private Color colorlf1 = new Color(0xF6FFED);
 
   // Add the tracker of the rotations per position
   private List<Tuple3<Integer, Integer, Integer>> rotTracker = new ArrayList<>();
@@ -127,21 +151,21 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     setObjectDefault();
     // This Frame properties
     this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    //this.setSize(364, 414);
     this.setLocationRelativeTo(null);
     this.setLayout(null);
     this.addKeyListener(this);
-    this.setTitle("Rotation Puzzle - Ziko Haris");
+    this.setTitle("Rotation Puzzle - by Ziko Haris");
     this.setJMenuBar(menuBar);
     this.setResizable(false);
     setWindowSize();
   }
 
   private void setWindowSize() {
-    this.setPreferredSize(new Dimension(bfL * 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
-        bfL + 60 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1)));
+    this.setSize(new Dimension(
+        bfL * 2 + 2 + bfW * fieldSizeX + bfSpace * (fieldSizeX - 1),
+        bfT + 60 + 6 + bfH * fieldSizeY + bfSpace * (fieldSizeY - 1)
+    ));
 
-    this.pack();
     try {
       Thread.sleep(20);
     } catch (Exception e) {
@@ -150,7 +174,6 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     if (checkboxmenuitemAutoCenter.getState()) {
       this.setLocationRelativeTo(null);
     }
-    this.pack();
   }
 
   private void setVariablesDefault() {
@@ -160,6 +183,18 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     isRotation1 = false;
     isRotation2 = false;
     isSelectActive = false;
+
+    fieldSizes = new int[10];
+    for (int i = 0; i < fieldSizes.length; ++i) {
+      fieldSizes[i] = 4 + i;
+    }
+
+    buttonSizes = new int[15];
+    for (int i = 0; i < buttonSizes.length; ++i) {
+      buttonSizes[i] = 30 + i * 5;
+    }
+
+    timesInMilliSeconds = new int[]{1, 2, 5, 10, 20, 50, 100, 200, 500};
   }
 
   private void setObjectDefault() {
@@ -168,13 +203,24 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     bfW = 60;
     bfH = 60;
     bfL = 20;
-    bfT = 20;
+    bfT = 88;
     bfSpace = 6;
+
     createButtonField();
-    setButtonFieldBound();
     setMenuBar();
-    loadNewMovingTable();
-    loadMovingTable9x9();
+    setLabels();
+    setButtonFieldBound();
+    new Thread() {
+      @Override
+      public void run() {
+        loadNewMovingTable();
+        loadMovingTable9x9();
+      }
+    }.start();
+
+    currentMenuItemSizeFieldActionListener.doCurrent();
+    currentMenuItemSizeButtonActionListener.doCurrent();
+    currentMenuItemSolvingSpeedActionListener.doCurrent();
   }
 
   private void createButtonField() {
@@ -221,15 +267,27 @@ public class RotationPuzzle extends JFrame implements KeyListener {
           btn.setLocation(bfL + (bfW + bfSpace) * i, bfT + (bfH + bfSpace) * j);
           btn.setSize(bfW, bfH);
           if (i > 0 && i < fieldSizeX - 1 && j > 0 && j < fieldSizeY - 1) {
-            Border outerBorder = new LineBorder(Color.RED, 3);
+            Border outerBorder = new LineBorder(Color.RED, 2);
             btn.setBorder(outerBorder);
+
+            btn.setBounds(btn.getX()-2, btn.getY()-2, btn.getWidth()+4, btn.getHeight()+4);
           } else {
-            btn.setBorder(null);
+//            btn.setBorder(null);
+            Border outerBorder = new LineBorder(Color.BLUE, 2);
+            btn.setBorder(outerBorder);
+
+            btn.setBounds(btn.getX()-2, btn.getY()-2, btn.getWidth()+4, btn.getHeight()+4);
           }
           this.fieldInt[j][i] = i + j * fieldSizeX + 1;
         }
       }
     }
+
+    labelFrame.setBounds(
+        bfL - labelThickness - labelSpacing,
+        bfT - labelThickness - labelSpacing,
+        bfW * fieldSizeX + bfSpace * (fieldSizeX - 1) + (labelThickness + labelSpacing) * 2,
+        bfH * fieldSizeY + bfSpace * (fieldSizeY - 1) + (labelThickness + labelSpacing) * 2);
   }
 
   // Define the Bar with there Elements
@@ -243,44 +301,24 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     // New
     menuitemNew = new JMenuItem();
     menuitemNew.setText("New Game");
-    menuitemNew.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        fieldNew();
-      }
-    });
+    menuitemNew.addActionListener(e -> fieldNew());
     menuMain.add(menuitemNew);
     // Mix
     menuitemMix = new JMenuItem();
     menuitemMix.setText("Mix Field");
-    menuitemMix.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        fieldMix();
-      }
-    });
+    menuitemMix.addActionListener(e -> fieldMix());
     menuMain.add(menuitemMix);
     // Solve
     menuitemSolve = new JMenuItem();
     menuitemSolve.setText("Solve Field");
-    menuitemSolve.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        fieldSolve();
-      }
-    });
+    menuitemSolve.addActionListener(e -> fieldSolve());
     menuMain.add(menuitemSolve);
     // Seperator
     menuMain.add(new JSeparator());
     // Exit
     menuitemExit = new JMenuItem();
     menuitemExit.setText("Exit");
-    menuitemExit.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        System.exit(0);
-      }
-    });
+    menuitemExit.addActionListener(e -> System.exit(0));
     menuMain.add(menuitemExit);
     // Size
     menuSettings = new JMenu();
@@ -292,30 +330,25 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     menuSizeField.setFont(font14);
     menuSettings.add(menuSizeField);
     // Size Field List
-    menuitemSizeField = new JMenuItem[11];
-    for (int i = 0; i < menuitemSizeField.length - 1; i++) {
+    menuitemSizeField = new JMenuItem[fieldSizes.length];
+    for (int i = 0; i < fieldSizes.length; i++) {
+      int fieldSize = fieldSizes[i];
       menuitemSizeField[i] = new JMenuItem();
-      menuitemSizeField[i].setText(String.valueOf(i + 4) + "x" + String.valueOf(i + 4));
-      ActionListener menuFieldListener = new MenuItemSizeFieldActionListener(i, i + 4, false);
+      menuitemSizeField[i].setText(fieldSize + "x" + fieldSize);
+      ActionListener menuFieldListener = new MenuItemSizeFieldActionListener(i, fieldSize, false);
       menuitemSizeField[i].addActionListener(menuFieldListener);
       menuSizeField.add(menuitemSizeField[i]);
     }
-    for (int i = 0; i < menuitemSizeField.length - 1; ++i) {
+    for (int i = 0; i < menuitemSizeField.length; ++i) {
       MenuItemSizeFieldActionListener menuFieldListener = (MenuItemSizeFieldActionListener)menuitemSizeField[i].getActionListeners()[0];
       if (i > 0) {
         menuFieldListener.setPrevActionListener((MenuItemSizeFieldActionListener)menuitemSizeField[i - 1].getActionListeners()[0]);
       }
-      if (i < menuitemSizeField.length - 2) {
+      if (i < menuitemSizeField.length - 1) {
         menuFieldListener.setNextActionListener((MenuItemSizeFieldActionListener)menuitemSizeField[i + 1].getActionListeners()[0]);
       }
     }
     currentMenuItemSizeFieldActionListener = (MenuItemSizeFieldActionListener)menuitemSizeField[1].getActionListeners()[0];
-    // Make the last one for Custom Size Field
-    int iter = menuitemSizeField.length - 1;
-    menuitemSizeField[iter] = new JMenuItem();
-    menuitemSizeField[iter].setText("Custom");
-    menuitemSizeField[iter].addActionListener(new MenuItemSizeFieldActionListener(iter, iter + 4, true));
-    menuSizeField.add(menuitemSizeField[iter]);
     // The Standard Chosen one is with 5x5 Field
     sizeFieldChosen = 1;
     menuitemSizeField[sizeFieldChosen].setBackground(colorb4);
@@ -325,15 +358,40 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     menuSizeButton.setText("Size of Button");
     menuSizeButton.setFont(font14);
     menuSettings.add(menuSizeButton);
+
+    menuitemSizeButton = new JMenuItem[buttonSizes.length];
+    for (int i = 0; i < buttonSizes.length; i++) {
+      int buttonSize = buttonSizes[i];
+      menuitemSizeButton[i] = new JMenuItem();
+      menuitemSizeButton[i].setText(buttonSize + "px");
+      menuitemSizeButton[i].addActionListener(new MenuItemSizeButtonActionListener(i, buttonSize, false));
+      menuSizeButton.add(menuitemSizeButton[i]);
+    }
+
+    // TODO: change to doCurrent function!
+    sizeButtonChosen = 6;
+    menuitemSizeButton[sizeButtonChosen].setBackground(colorb4);
+    menuitemSizeButton[sizeButtonChosen].setForeground(colorf4);
+
+    for (int i = 0; i < menuitemSizeButton.length; ++i) {
+      MenuItemSizeButtonActionListener menuFieldListener = (MenuItemSizeButtonActionListener)menuitemSizeButton[i].getActionListeners()[0];
+      if (i > 0) {
+        menuFieldListener.setPrevActionListener((MenuItemSizeButtonActionListener)menuitemSizeButton[i - 1].getActionListeners()[0]);
+      }
+      if (i < menuitemSizeButton.length - 1) {
+        menuFieldListener.setNextActionListener((MenuItemSizeButtonActionListener)menuitemSizeButton[i + 1].getActionListeners()[0]);
+      }
+    }
+
+    currentMenuItemSizeButtonActionListener = (MenuItemSizeButtonActionListener)menuitemSizeButton[5].getActionListeners()[0];
     // Solving Time
     menuSolvingSpeed = new JMenu();
     menuSolvingSpeed.setText("Solving Speed");
     menuSolvingSpeed.setFont(font14);
+    menuSettings.add(menuSolvingSpeed);
 
-    int[] timesInMilliSeconds = new int[]{5, 10, 20, 50, 100, 200, 500};
     menuitemSolvingSpeed = new JMenuItem[timesInMilliSeconds.length];
 
-    lastUsedIdxMenuItemSolvingSpeed = 0;
     for (int i = 0; i < timesInMilliSeconds.length; ++i) {
       JMenuItem jmi = new JMenuItem();
       jmi.setText(timesInMilliSeconds[i]+" ms");
@@ -347,59 +405,35 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       if (i > 0) {
         now.prevActionListener = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[i - 1].getActionListeners()[0];
       }
-      if (i < timesInMilliSeconds.length - 2) {
+      if (i < timesInMilliSeconds.length - 1) {
         now.nextActionListener = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[i + 1].getActionListeners()[0];
       }
     }
 
-    menuitemSolvingSpeed[lastUsedIdxMenuItemSolvingSpeed].getActionListeners()[0].actionPerformed(new ActionEvent(this, 0, "dummy click"));
+    lastUsedIdxMenuItemSolvingSpeed = 3;
     currentMenuItemSolvingSpeedActionListener = (MenuItemSolvingSpeedActionListener)menuitemSolvingSpeed[lastUsedIdxMenuItemSolvingSpeed].getActionListeners()[0];
-
-    menuSettings.add(menuSolvingSpeed);
-    // Size Button List
-    menuitemSizeButton = new JMenuItem[16];
-    for (int i = 0; i < menuitemSizeButton.length - 1; i++) {
-      menuitemSizeButton[i] = new JMenuItem();
-      menuitemSizeButton[i].setText(String.valueOf(30 + i * 5) + "px");
-      menuitemSizeButton[i].addActionListener(new MenuItemSizeButtonActionListener(i, 30 + i * 5, false));
-      menuSizeButton.add(menuitemSizeButton[i]);
-    }
-    // Make the last one for Custom Size Field
-    iter = menuitemSizeButton.length - 1;
-    menuitemSizeButton[iter] = new JMenuItem();
-    menuitemSizeButton[iter].setText("Custom");
-    menuitemSizeButton[iter].addActionListener(new MenuItemSizeButtonActionListener(iter, 30 + iter * 5, true));
-    menuSizeButton.add(menuitemSizeButton[iter]);
-    // The Standard Chosen one 60px height and width
-    sizeButtonChosen = 6;
-    menuitemSizeButton[sizeButtonChosen].setBackground(colorb4);
-    menuitemSizeButton[sizeButtonChosen].setForeground(colorf4);
     // Settings
-    menuSettings2 = new JMenu();
-    menuSettings2.setText("Settings");
-    menuBar.add(menuSettings2);
+//    menuSettings2 = new JMenu();
+//    menuSettings2.setText("Settings");
+//    menuBar.add(menuSettings2);
     // AutoCenter
     checkboxmenuitemAutoCenter = new JCheckBoxMenuItem();
     checkboxmenuitemAutoCenter.setText("Auto Center");
     checkboxmenuitemAutoCenter.setState(true);
-    menuSettings2.add(checkboxmenuitemAutoCenter);
+    checkboxmenuitemAutoCenter.setFont(font14);
+    menuSettings.add(checkboxmenuitemAutoCenter);
     // Show Color
     checkboxmenuitemShowColor = new JCheckBoxMenuItem();
     checkboxmenuitemShowColor.setText("Show Color");
     checkboxmenuitemShowColor.setState(true);
-    checkboxmenuitemShowColor.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        refreshFieldButton(isSelectActive);
-
-      }
-    });
-    menuSettings2.add(checkboxmenuitemShowColor);
-
+    checkboxmenuitemShowColor.addActionListener(e -> refreshFieldButton(isSelectActive));
+    checkboxmenuitemShowColor.setFont(font14);
+    menuSettings.add(checkboxmenuitemShowColor);
     // Change Keys
     menuitemChangeKeys = createNewJMenuItem("Change Keys",
         null,
-        menuSettings2);
+        menuSettings);
+    menuitemChangeKeys.setFont(font14);
     // Help
     menuHelp = new JMenu();
     menuHelp.setText("Help");
@@ -407,39 +441,122 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     // Intro
     menuitemIntro = new JMenuItem();
     menuitemIntro.setText("Intro");
-    menuitemIntro.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        JOptionPane.showConfirmDialog(null, "How is this Game played?\n" +
-            "You can play with mouse or with keyboard.\n" +
-            "The middle Field with a border are clickable, the other outside are not.\n" +
-            "If you want to play with keyboard, use the arrows.\n\n" +
-            "Also notice that you only rotate 8 field clockwise.\n" +
-            "Some more controls:\n" +
-            "\"space\" ... Will rotate 1 cycle\n" +
-            "\"a\" ....... Let you to rotate counter-clockwise\n" +
-            "\"s\" ....... Rotate +1 more\n" +
-            "\"d\" ....... Rotate +2 more\n\n" +
-            "You can also combine these keys:\n" +
-            "e.g. \"a\"+\"d\"+\"space\" will do 3 rotations counter-clockwise", "Rotations Puzzle - Intro", JOptionPane.DEFAULT_OPTION);
-      }
+    menuitemIntro.addActionListener(e -> {
+      JOptionPane.showConfirmDialog(null, "How is this Game played?\n" +
+          "You can play with mouse or with keyboard.\n" +
+          "The middle Field with a border are clickable, the other outside are not.\n" +
+          "If you want to play with keyboard, use the arrows.\n\n" +
+          "Also notice that you only rotate 8 field clockwise.\n" +
+          "Some more controls:\n" +
+          "\"space\" ... Will rotate 1 cycle\n" +
+          "\"a\" ....... Let you to rotate counter-clockwise\n" +
+          "\"s\" ....... Rotate +1 more\n" +
+          "\"d\" ....... Rotate +2 more\n\n" +
+          "You can also combine these keys:\n" +
+          "e.g. \"a\"+\"d\"+\"space\" will do 3 rotations counter-clockwise", "Rotations Puzzle - Intro", JOptionPane.DEFAULT_OPTION);
     });
     menuHelp.add(menuitemIntro);
     // Info
     menuitemInfo = new JMenuItem();
     menuitemInfo.setText("Info");
-    menuitemInfo.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        JOptionPane.showConfirmDialog(null,
-            "Rotation Puzzle programmed by Haris Ziko\n" +
-                "Last Date of changes: 2015.03.04;11:08\n" +
-                "Added Features:\n" +
-                "+Auto Size\n+Show Color\n" +
-                "v0.2.2", "Rotations Puzzle - Info", JOptionPane.DEFAULT_OPTION);
-      }
+    menuitemInfo.addActionListener(e -> {
+      JOptionPane.showConfirmDialog(null,
+          "Rotation Puzzle programmed by Haris Ziko\n" +
+              "Last Date of changes: 2019.05.24; 11:19\n" +
+              "Added Features:\n" +
+              "+ Auto Size\n+ Show Color\n+ Change Button Size\n+ Change Field Size\n+ Mix and solve the puzzle!\n" +
+              "+ Add multithreading plus locking/semaphores too\n" +
+              "+ Can use keyboard to play too\n" +
+              "v0.2.6", "Rotations Puzzle - Info", JOptionPane.DEFAULT_OPTION);
     });
     menuHelp.add(menuitemInfo);
+  }
+
+  private void setLabels() {
+    Font font = new Font((new JButton()).getFont().getFontName(), Font.BOLD, 10);
+    int border = 2;
+
+    int w1 = 80;
+    int w2 = 50;
+
+    Rectangle r11 = new Rectangle(bfL - labelThickness - labelSpacing, 10, w1 + w2, 20);
+    Rectangle r12 = new Rectangle(r11.x + w1, r11.y + border, r11.width - w1 - border, r11.height - border * 2);
+
+    Rectangle r21 = new Rectangle(r11.x, r11.y + r11.height + border, w1 + w2, r11.height);
+    Rectangle r22 = new Rectangle(r21.x + w1, r21.y + border, r21.width - w1 - border, r21.height - border * 2);
+
+    Rectangle r31 = new Rectangle(r11.x, r21.y +r21.height + border, w1 + w2, r11.height);
+    Rectangle r32 = new Rectangle(r31.x + w1, r31.y + border, r31.width - w1 - border, r31.height - border * 2);
+
+    labelFieldSizeText = new JLabel();
+    labelFieldSizeText.setText(" Field Size:");
+    labelFieldSizeText.setBounds(r11);
+    labelFieldSizeText.setFont(font);
+    labelFieldSizeText.setBackground(colorlb0);
+    labelFieldSizeText.setForeground(colorlf0);
+    labelFieldSizeText.setBorder(null);
+    labelFieldSizeText.setOpaque(true);
+
+    labelFieldSize = new JLabel();
+    labelFieldSize.setText(fieldSizeX + "x" + fieldSizeY);
+    labelFieldSize.setBounds(r12);
+    labelFieldSize.setFont(font);
+    labelFieldSize.setBackground(colorlb1);
+    labelFieldSize.setForeground(colorlf1);
+    labelFieldSize.setBorder(null);
+    labelFieldSize.setOpaque(true);
+    labelFieldSize.setHorizontalAlignment(JLabel.CENTER);
+
+    labelButtonSizeText = new JLabel();
+    labelButtonSizeText.setText(" Button Size:");
+    labelButtonSizeText.setBounds(r21);
+    labelButtonSizeText.setFont(font);
+    labelButtonSizeText.setBackground(colorlb0);
+    labelButtonSizeText.setForeground(colorlf0);
+    labelButtonSizeText.setBorder(null);
+    labelButtonSizeText.setOpaque(true);
+
+    labelButtonSize = new JLabel();
+    labelButtonSize.setText("" + bfW);
+    labelButtonSize.setBounds(r22);
+    labelButtonSize.setFont(font);
+    labelButtonSize.setBackground(colorlb1);
+    labelButtonSize.setForeground(colorlf1);
+    labelButtonSize.setBorder(null);
+    labelButtonSize.setOpaque(true);
+    labelButtonSize.setHorizontalAlignment(JLabel.CENTER);
+
+    labelSolveSpeedText = new JLabel();
+    labelSolveSpeedText.setText(" Solve Speed:");
+    labelSolveSpeedText.setBounds(r31);
+    labelSolveSpeedText.setFont(font);
+    labelSolveSpeedText.setBackground(colorlb0);
+    labelSolveSpeedText.setForeground(colorlf0);
+    labelSolveSpeedText.setBorder(null);
+    labelSolveSpeedText.setOpaque(true);
+
+    labelSolveSpeed = new JLabel();
+    labelSolveSpeed.setText(movingSpeedTime + " ms");
+    labelSolveSpeed.setBounds(r32);
+    labelSolveSpeed.setFont(font);
+    labelSolveSpeed.setBackground(colorlb1);
+    labelSolveSpeed.setForeground(colorlf1);
+    labelSolveSpeed.setBorder(null);
+    labelSolveSpeed.setOpaque(true);
+    labelSolveSpeed.setHorizontalAlignment(JLabel.CENTER);
+
+    this.add(labelFieldSize);
+    this.add(labelFieldSizeText);
+
+    this.add(labelButtonSize);
+    this.add(labelButtonSizeText);
+
+    this.add(labelSolveSpeed);
+    this.add(labelSolveSpeedText);
+
+    labelFrame = new JLabel();
+    labelFrame.setBorder(BorderFactory.createLineBorder(new Color(0x000000), labelThickness));
+    this.add(labelFrame);
   }
 
   private JMenu createNewJMenu(String text, ActionListener newActionListener, JMenuBar jMenuBar) {
@@ -459,10 +576,8 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   }
 
   private class ButtonActionListener implements ActionListener {
-    @Getter @Setter
-    public int x;
-    @Getter @Setter
-    public int y;
+    @Getter @Setter public int x;
+    @Getter @Setter public int y;
 
     public ButtonActionListener(int x, int y) {
       this.setX(x);
@@ -472,9 +587,13 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     @Override
     public void actionPerformed(ActionEvent e) {
       if (x > 0 && x < fieldSizeX - 1 && y > 0 && y < fieldSizeY - 1) {
+        if (!doingSlowlyMoves.tryAcquire()) {
+          return;
+        }
         rotateFieldNumbersAction(x, y);
         refreshFieldButton(false);
         isSelectActive = false;
+        doingSlowlyMoves.release();
       }
     }
   }
@@ -501,6 +620,7 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   }
 
   private void loadNewMovingTable() {
+    try { semaphoreMovingTableFields.acquire(); } catch (Exception e) { e.printStackTrace(); }
     int sizeX = this.fieldSizeX;
     int sizeY = this.fieldSizeY;
 
@@ -511,6 +631,7 @@ public class RotationPuzzle extends JFrame implements KeyListener {
     HashIntHashTup2ListTup4 movingTable = new HashIntHashTup2ListTup4();
     if (movingTableFields.v.containsKey(fieldSize)) {
       currentMovingTable = movingTableFields.v.get(fieldSize);
+      semaphoreMovingTableFields.release();
       return;
     }
     movingTableFields.v.put(fieldSize, movingTable);
@@ -618,15 +739,11 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       e.printStackTrace();
       currentMovingTable = null;
     }
+    semaphoreMovingTableFields.release();
   }
 
   private void loadMovingTable9x9() {
-//    String filePath = "all_moves_3x3_field_text.txt";
-
-    // TODO: add a thread for reading the file while something else
-    movingTable9x9 = null;
-//    if (true)
-//      return;
+    try { semaphoreMovingTable9x9.acquire(); } catch (Exception e) { e.printStackTrace(); }
 
     movingTable9x9 = new HashMap<>();
     int i = 0;
@@ -641,6 +758,11 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       while (line != null) {
         if (++i % 10000 == 0) {
           System.out.println("i: "+i);
+//          try {
+//            Thread.sleep(100);
+//          } catch (Exception e) {
+//            e.printStackTrace();
+//          }
         }
         String field3x3 = line.substring(0, 9);
 
@@ -666,60 +788,83 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       e.printStackTrace();
       movingTable9x9 = null;
     }
+
+    semaphoreMovingTable9x9.release();
   }
 
   private class MenuItemSolvingSpeedActionListener implements ActionListener {
     private RotationPuzzle rp = RotationPuzzle.this;
-    private int idx_;
-    private JMenuItem jmi_;
-    private int movingSpeedTime_;
 
-    @Getter @Setter
-    private MenuItemSolvingSpeedActionListener prevActionListener = null;
-    @Getter @Setter
-    private MenuItemSolvingSpeedActionListener nextActionListener = null;
+    @Getter @Setter private int index;
+    @Getter @Setter private JMenuItem jmi;
+    @Getter @Setter private int movingSpeedTime;
+
+    @Getter @Setter private MenuItemSolvingSpeedActionListener prevActionListener = null;
+    @Getter @Setter private MenuItemSolvingSpeedActionListener nextActionListener = null;
+
+    public void doNext() {
+      if (nextActionListener != null) {
+        nextActionListener.actionPerformed(new ActionEvent(this, index, "from SolvingSpeedAL"));
+      }
+    }
+
+    public void doCurrent() {
+      this.actionPerformed(new ActionEvent(this, index, "from SolvingSpeeddAL"));
+    }
+
+    public void doPrev() {
+      if (prevActionListener != null) {
+        prevActionListener.actionPerformed(new ActionEvent(this, index, "from SolvingSpeedAL"));
+      }
+    }
 
     MenuItemSolvingSpeedActionListener(int idx, JMenuItem jmi, int movingSpeedTime) {
-      idx_ = idx;
-      jmi_ = jmi;
-      movingSpeedTime_ = movingSpeedTime;
+      this.index = idx;
+      this.jmi = jmi;
+      this.movingSpeedTime = movingSpeedTime;
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
+      try { rp.semaphoreActionListener.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+      try { rp.semaphoreJComponents.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+
       JMenuItem prevJmi = menuitemSolvingSpeed[lastUsedIdxMenuItemSolvingSpeed];
       prevJmi.setBackground(colorb0);
       prevJmi.setForeground(colorf0);
 
-      jmi_.setBackground(colorb4);
-      jmi_.setForeground(colorf4);
+      jmi.setBackground(colorb4);
+      jmi.setForeground(colorf4);
 
-      rp.lastUsedIdxMenuItemSolvingSpeed = idx_;
-      rp.movingSpeedTime = movingSpeedTime_;
+      rp.lastUsedIdxMenuItemSolvingSpeed = index;
+      rp.movingSpeedTime = movingSpeedTime;
 
       rp.currentMenuItemSolvingSpeedActionListener = this;
+      rp.labelSolveSpeed.setText(rp.movingSpeedTime + " ms");
+
+      rp.semaphoreJComponents.release();
+      rp.semaphoreActionListener.release();
     }
   }
 
   private class MenuItemSizeFieldActionListener implements ActionListener {
-    @Getter
-    @Setter
-    public int index;
-    @Getter
-    @Setter
-    public int size;
-    @Getter
-    @Setter
-    public boolean isCustom;
-    @Getter @Setter
-    public MenuItemSizeFieldActionListener nextActionListener = null;
-    @Getter @Setter
-    public MenuItemSizeFieldActionListener prevActionListener = null;
+    private RotationPuzzle rp = RotationPuzzle.this;
+
+    @Getter @Setter public int index;
+    @Getter @Setter public int size;
+    @Getter @Setter public boolean isCustom;
+
+    @Getter @Setter public MenuItemSizeFieldActionListener nextActionListener = null;
+    @Getter @Setter public MenuItemSizeFieldActionListener prevActionListener = null;
 
     public void doNext() {
       if (nextActionListener != null) {
         nextActionListener.actionPerformed(new ActionEvent(this, index, "from SizeFieldAL"));
       }
+    }
+
+    public void doCurrent() {
+      this.actionPerformed(new ActionEvent(this, index, "from SizeFieldAL"));
     }
 
     public void doPrev() {
@@ -737,6 +882,9 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
+      try { rp.semaphoreActionListener.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+      try { rp.semaphoreJComponents.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+
       if (!isCustom) {
         fieldSizeX = size;
         fieldSizeY = size;
@@ -754,26 +902,50 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       selecty = 1;
       isSelectActive = false;
       refreshFieldButton(isSelectActive);
-      loadNewMovingTable();
-      System.out.println("Field Menu Item #" + String.valueOf(index));
+      new Thread() {
+        @Override
+        public void run() {
+          if (semaphoreMovingTableFields.availablePermits() > 0) {
+            loadNewMovingTable();
+          }
+        }
+      }.start();
+//      loadNewMovingTable();
+      System.out.println("Field Menu Item #" + index);
 
-      try { RotationPuzzle.this.semaphoreActionListener.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
-      RotationPuzzle.this.currentMenuItemSizeFieldActionListener = this;
-      RotationPuzzle.this.semaphoreActionListener.release();
+      rp.currentMenuItemSizeFieldActionListener = this;
+      rp.labelFieldSize.setText(rp.fieldSizeX + "x" + rp.fieldSizeY);
+
+      rp.semaphoreJComponents.release();
+      rp.semaphoreActionListener.release();
     }
   }
 
   private class MenuItemSizeButtonActionListener implements ActionListener {
-    @Getter
-    @Setter
-    public int index;
-    @Getter
-    @Setter
-    public int size;
-    @Getter
-    @Setter
-    public boolean isCustom;
+    private RotationPuzzle rp = RotationPuzzle.this;
 
+    @Getter @Setter public int index;
+    @Getter @Setter public int size;
+    @Getter @Setter public boolean isCustom;
+
+    @Getter @Setter public MenuItemSizeButtonActionListener nextActionListener = null;
+    @Getter @Setter public MenuItemSizeButtonActionListener prevActionListener = null;
+
+    public void doNext() {
+      if (nextActionListener != null) {
+        nextActionListener.actionPerformed(new ActionEvent(this, index, "from SizeButtonAL"));
+      }
+    }
+
+    public void doCurrent() {
+      this.actionPerformed(new ActionEvent(this, index, "from SizeButtonAL"));
+    }
+
+    public void doPrev() {
+      if (prevActionListener != null) {
+        prevActionListener.actionPerformed(new ActionEvent(this, index, "from SizeButtonAL"));
+      }
+    }
 
     public MenuItemSizeButtonActionListener(int index, int size, boolean isCustom) {
       this.index = index;
@@ -783,6 +955,9 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
+      try { rp.semaphoreActionListener.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+      try { rp.semaphoreJComponents.acquire(); } catch (Exception ex) { ex.printStackTrace(); }
+
       if (!isCustom) {
         bfW = size;
         bfH = size;
@@ -800,7 +975,12 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       selecty = 1;
       isSelectActive = false;
       refreshFieldButton(isSelectActive);
-      System.out.println("Button Menu Item #" + String.valueOf(index));
+      System.out.println("Button Menu Item #" + index);
+
+      rp.currentMenuItemSizeButtonActionListener = this;
+
+      rp.semaphoreJComponents.release();
+      rp.semaphoreActionListener.release();
     }
   }
 
@@ -918,10 +1098,20 @@ public class RotationPuzzle extends JFrame implements KeyListener {
   }
 
   public void fieldMix() {
-    if (!doingSlowlyMoves.tryAcquire()) { // TODO: is not working correctly!
+//    if (!doingSlowlyMoves.tryAcquire()) { // TODO: is not working correctly!
+//      System.out.println("Could not aquire lock 'doingSlowlyMoves' from function 'fieldMix'!");
+//      return;
+//    }
+    if (!doingSlowlyMoves.tryAcquire()) {
       return;
     }
-//    try { doingSlowlyMoves.acquire(); } catch (Exception e) { e.printStackTrace(); }
+    System.out.println("Locking semaphore 'doingSlowlyMoves' in fieldMix!");
+//    try {
+//      doingSlowlyMoves.acquire();
+//      System.out.println("fieldMix: aquired lock 'doingSlowlyMoves'!");
+//    } catch (Exception e) { e.printStackTrace(); }
+
+//    finishedDoingSlowlyMoves = false;
 
     ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList = new ArrayList<>();
 
@@ -939,10 +1129,16 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
     doTheMovesSlowly(movesList);
 
-    doingSlowlyMoves.release();
+//    try { doingSlowlyMoves.acquire(); } catch (Exception e) { e.printStackTrace(); }
+//    System.out.println("fieldMix: release lock 'doingSlowlyMoves'!");
+//    doingSlowlyMoves.release();
   }
 
   private void fieldSolveFirstPart(ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList) {
+    if (!semaphoreMovingTableFields.tryAcquire()) {
+      return;
+    }
+
     int sizeY = this.fieldSizeY;
     int sizeX = this.fieldSizeX;
 
@@ -974,6 +1170,7 @@ public class RotationPuzzle extends JFrame implements KeyListener {
         }
       }
     }
+    semaphoreMovingTableFields.release();
   }
 
   private void fieldSolveSecondPart(ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList) {
@@ -997,7 +1194,12 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
     System.out.println("field9x9: "+field9x9);
 
+    if (!semaphoreMovingTable9x9.tryAcquire()) {
+      return;
+    }
+
     if (movingTable9x9 == null) {
+      semaphoreMovingTable9x9.release();
       return;
     }
 
@@ -1006,13 +1208,23 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       rotateFieldNumbers(t);
       movesList.add(t);
     });
+
+    semaphoreMovingTable9x9.release();
   }
 
   public void fieldSolve() {
+//    if (!doingSlowlyMoves.tryAcquire()) {
+//      System.out.println("Could not aquire lock 'doingSlowlyMoves' from function 'fieldSolve'!");
+//      return;
+//    }
+    System.out.println("Locking semaphore 'doingSlowlyMoves' in fieldSolve!");
     if (!doingSlowlyMoves.tryAcquire()) {
       return;
     }
-//    try { doingSlowlyMoves.acquire(); } catch (Exception e) { e.printStackTrace(); }
+//    try {
+//      doingSlowlyMoves.acquire();
+//      System.out.println("fieldSolve: aquired lock 'doingSlowlyMoves'!");
+//    } catch (Exception e) { e.printStackTrace(); }
 
     if (currentMovingTable == null) {
       return;
@@ -1034,7 +1246,9 @@ public class RotationPuzzle extends JFrame implements KeyListener {
 
     doTheMovesSlowly(movesList);
 
-    doingSlowlyMoves.release();
+//    try { doingSlowlyMoves.acquire(); } catch (Exception e) { e.printStackTrace(); }
+//    System.out.println("fieldSolve: release lock 'doingSlowlyMoves'!");
+//    doingSlowlyMoves.release();
   }
 
   private void doTheMovesSlowly(ArrayList<Tuple4<Integer, Integer, Integer, Boolean>> movesList) {
@@ -1042,7 +1256,11 @@ public class RotationPuzzle extends JFrame implements KeyListener {
       RotationPuzzle rp = RotationPuzzle.this;
 
       private void sleep() {
-        try { Thread.sleep(rp.movingSpeedTime); } catch (Exception e) { }
+        try { Thread.sleep(rp.movingSpeedTime); } catch (Exception e) { e.printStackTrace(); }
+      }
+
+      private void sleepShort() {
+        try { Thread.sleep(1); } catch (Exception e) { e.printStackTrace(); }
       }
 
       @Override
@@ -1071,6 +1289,8 @@ public class RotationPuzzle extends JFrame implements KeyListener {
             rp.fieldButton[a.y][a.x].setBackground(colorb5);
             rp.fieldButton[a.y][a.x].setForeground(colorf5);
 
+            a.finished = true;
+
             a.sem.release();
           }
         };
@@ -1091,6 +1311,8 @@ public class RotationPuzzle extends JFrame implements KeyListener {
             rp.fieldButton[y][x].setBackground(colorb5);
             rp.fieldButton[y][x].setForeground(colorf5);
 
+            a.finished = true;
+
             a.sem.release();
           }
         };
@@ -1105,12 +1327,14 @@ public class RotationPuzzle extends JFrame implements KeyListener {
             rp.fieldButton[a.y][a.x].setBackground(a.cbBefore);
             rp.fieldButton[a.y][a.x].setForeground(a.cfBefore);
 
+            a.finished = true;
+
             a.sem.release();
           }
         };
 
+        try { a.sem.acquire(); } catch (Exception e) { }
         movesList.forEach(t -> {
-          try { a.sem.acquire(); } catch (Exception e) { }
           a.move = t;
 
           a.x = t.v1;
@@ -1122,27 +1346,46 @@ public class RotationPuzzle extends JFrame implements KeyListener {
           a.cfBefore = rp.fieldButton[a.y][a.x].getForeground();
 
           SwingUtilities.invokeLater(th1);
+          a.finished = false;
           a.sem.release();
           sleep();
-
-//          try { a.sem.acquire(); } catch (Exception e) { }
-//          a.finished = false;
-          for (int i = 0; i < a.r; ++i) {
-            try { a.sem.acquire(); } catch (Exception e) { }
-            SwingUtilities.invokeLater(th2);
-            a.sem.release();
-            sleep();
-          }
 
           try { a.sem.acquire(); } catch (Exception e) { }
+          while (!a.finished) {
+            a.sem.release();
+            sleepShort();
+            try { a.sem.acquire(); } catch (Exception e) { }
+          }
+
+          for (int i = 0; i < a.r; ++i) {
+            SwingUtilities.invokeLater(th2);
+            a.finished = false;
+            a.sem.release();
+            sleep();
+
+            try { a.sem.acquire(); } catch (Exception e) { }
+            while (!a.finished) {
+              a.sem.release();
+              sleepShort();
+              try { a.sem.acquire(); } catch (Exception e) { }
+            }
+          }
+
           SwingUtilities.invokeLater(th3);
+          a.finished = false;
           a.sem.release();
           sleep();
+
+          try { a.sem.acquire(); } catch (Exception e) { }
+          while (!a.finished) {
+            a.sem.release();
+            sleepShort();
+            try { a.sem.acquire(); } catch (Exception e) { }
+          }
         });
 
-        try { a.sem.acquire(); } catch (Exception e) { }
-        a.finished = true;
         a.sem.release();
+        rp.doingSlowlyMoves.release();
       }
     }).start();
   }
@@ -1170,33 +1413,42 @@ public class RotationPuzzle extends JFrame implements KeyListener {
         refreshFieldButton();
         break;
       case 'm':
-        fieldMix();
+        new Thread() {
+          @Override
+          public void run() {
+            fieldMix();
+          }
+        }.start();
         break;
       case 'b':
-        fieldSolve();
+        new Thread() {
+          @Override
+          public void run() {
+            fieldSolve();
+          }
+        }.start();
+//        fieldSolve();
         break;
       case ',':
         System.out.println("Pressed the ',' key!");
         break;
-      case 'w':
-        System.out.println("Pressed the 'w' key!");
-        currentMenuItemSizeFieldActionListener.doNext();
-        break;
       case 'q':
-        System.out.println("Pressed the 'q' key!");
         currentMenuItemSizeFieldActionListener.doPrev();
         break;
+      case 'w':
+        currentMenuItemSizeFieldActionListener.doNext();
+        break;
       case 'e':
-        MenuItemSolvingSpeedActionListener prevSolvingSpeed = currentMenuItemSolvingSpeedActionListener.prevActionListener;
-        if (prevSolvingSpeed != null) {
-          prevSolvingSpeed.actionPerformed(new ActionEvent(this, 0, "e key"));
-        }
+        currentMenuItemSizeButtonActionListener.doPrev();
         break;
       case 'r':
-        MenuItemSolvingSpeedActionListener nextSolvingSpeed = currentMenuItemSolvingSpeedActionListener.nextActionListener;
-        if (nextSolvingSpeed != null) {
-          nextSolvingSpeed.actionPerformed(new ActionEvent(this, 0, "r key"));
-        }
+        currentMenuItemSizeButtonActionListener.doNext();
+        break;
+      case 't':
+        currentMenuItemSolvingSpeedActionListener.doPrev();
+        break;
+      case 'z':
+        currentMenuItemSolvingSpeedActionListener.doNext();
         break;
       case 'n':
         System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");

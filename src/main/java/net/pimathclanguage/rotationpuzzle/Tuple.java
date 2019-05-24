@@ -1,19 +1,21 @@
 package net.pimathclanguage.rotationpuzzle;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.Arrays;
 
+// All Tuple classes are mutable!
 public class Tuple {
     public final static class Tuple2<V1, V2> {
-        private V1 v1;
-        private V2 v2;
+        @Getter @Setter public V1 v1;
+        @Getter @Setter public V2 v2;
         
         public Tuple2(V1 v1, V2 v2) {
             this.v1 = v1;
             this.v2 = v2;
         }
         
-        public V1 getV1() { return this.v1; }
-        public V2 getV2() { return this.v2; }
         public Object get(int index) {
             switch (index) {
                 case 0:
@@ -24,8 +26,6 @@ public class Tuple {
             return null;
         }
         
-        public void setV1(V1 v1) { this.v1 = v1; }
-        public void setV2(V2 v2) { this.v2 = v2; }
         public void set(int index, Object v) {
             switch (index) {
                 case 0:
@@ -53,9 +53,9 @@ public class Tuple {
     }
 
     public final static class Tuple3<V1, V2, V3> {
-        private V1 v1;
-        private V2 v2;
-        private V3 v3;
+        @Getter @Setter public V1 v1;
+        @Getter @Setter public V2 v2;
+        @Getter @Setter public V3 v3;
 
         public Tuple3(V1 v1, V2 v2, V3 v3) {
             this.v1 = v1;
@@ -63,9 +63,6 @@ public class Tuple {
             this.v3 = v3;
         }
 
-        public V1 getV1() { return this.v1; }
-        public V2 getV2() { return this.v2; }
-        public V3 getV3() { return this.v3; }
         public Object get(int index) {
             switch (index) {
                 case 0:
@@ -78,9 +75,6 @@ public class Tuple {
             return null;
         }
 
-        public void setV1(V1 v1) { this.v1 = v1; }
-        public void setV2(V2 v2) { this.v2 = v2; }
-        public void setV3(V3 v3) { this.v3 = v3; }
         public void set(int index, Object v) {
             switch (index) {
                 case 0:
@@ -110,10 +104,10 @@ public class Tuple {
     }
 
     public final static class Tuple4<V1, V2, V3, V4> {
-        public V1 v1;
-        public V2 v2;
-        public V3 v3;
-        public V4 v4;
+        @Getter @Setter public V1 v1;
+        @Getter @Setter public V2 v2;
+        @Getter @Setter public V3 v3;
+        @Getter @Setter public V4 v4;
 
         public Tuple4(V1 v1, V2 v2, V3 v3, V4 v4) {
             this.v1 = v1;
@@ -122,10 +116,6 @@ public class Tuple {
             this.v4 = v4;
         }
 
-        public V1 getV1() { return this.v1; }
-        public V2 getV2() { return this.v2; }
-        public V3 getV3() { return this.v3; }
-        public V4 getV4() { return this.v4; }
         public Object get(int index) {
             switch (index) {
                 case 0:
@@ -140,10 +130,6 @@ public class Tuple {
             return null;
         }
 
-        public void setV1(V1 v1) { this.v1 = v1; }
-        public void setV2(V2 v2) { this.v2 = v2; }
-        public void setV3(V3 v3) { this.v3 = v3; }
-        public void setV4(V4 v4) { this.v4 = v4; }
         public void set(int index, Object v) {
             switch (index) {
                 case 0:
@@ -182,12 +168,28 @@ public class Tuple {
         private final T[] contents;
 
         public TupleMany (T[] contents) {
-            if (contents.length != 2)
+            if (contents == null || contents.length == 0) {
                 throw new IllegalArgumentException();
+            }
+
             this.contents = contents;
         }
 
+        public T getValue(int index) {
+            return (index >= 0 && index < this.contents.length) ? this.contents[index] : null;
+        }
+
+        public void setValue(int index, T value) {
+            if (index >= 0 && index < this.contents.length) {
+                this.contents[index] = value;
+            }
+        }
+
         public T[] getContents () {
+            return this.contents;
+        }
+
+        public T[] getContentsCopy () {
             return this.contents.clone();
         }
 
