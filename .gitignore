@@ -1,3 +1,10 @@
 .idea/
 back/*
 target/
+
+MainProgramsPuzzles.iml
+mainprogramspuzzles.properties
+mainprogramspuzzles.xml
+module_mainprogramspuzzles.xml
+src/main/java/net/pimathclanguage/rotationpuzzle/all_moves_3x3_field_text.txt.zip
+
